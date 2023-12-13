@@ -1,0 +1,10 @@
+__pycache__/
+.vscode
+config.py
+bot_env
+*.bat
+sql_base
+brothers.db
+mat.txt
+to_json.py
+testbot_2.py
