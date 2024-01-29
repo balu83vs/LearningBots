@@ -8,8 +8,8 @@ from config import TOKEN
 
 from db_create import db_create
 from db_operations import (
-                       get_current_question_id, get_next_question, 
-                       get_question_from_database, get_users_from_database,
+                       new_user_creating, get_users_from_database,
+                       get_current_question_id, get_next_question, get_question_from_database,
                        save_answer)
 
 
@@ -26,21 +26,25 @@ db_create()
 # Обработчик команды /start
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("Привет! Я бот для рассылки вопросов. Введите /send для начала рассылки.")
+    user_id = message.from_user.id
+    if new_user_creating(user_id):
+        await message.answer("Привет! Я бот для рассылки вопросов.\n Ваш user_id успешно внесен в базу данных.\n")
+    else:
+        await message.answer("Вы уже есть в Базе.")
 
 # Обработчик команды /send
 @dp.message(Command("send"))
 async def send_questions(message: types.Message):
     # Получаем список пользователей
     users = get_users_from_database()  # список пользователей из базы данных
-
     # Отправляем вопросы каждому пользователю
     for user_id in users:
-        question = get_question_from_database()  # вопрос из базы данных
-        buttons = [types.KeyboardButton(answer) for answer in question['answers']]
-        keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard_markup.add(*buttons)
-        await bot.send_message(user_id, question['text'], reply_markup=keyboard_markup)
+        #question = get_question_from_database()  # вопрос из базы данных
+        #buttons = [types.KeyboardButton(answer) for answer in question['answers']]
+        #keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        #keyboard_markup.add(*buttons)
+        #await bot.send_message(user_id, question['text'], reply_markup=keyboard_markup)
+        await bot.send_message(user_id[0], f'Проверка {user_id[0]}')
 
 # Обработчик ответов на вопросы
 @dp.message()

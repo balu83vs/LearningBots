@@ -26,7 +26,7 @@ def db_create():
             user_id INTEGER,
             company_id INTEGER,
             team_id INTEGER,
-            admin BOOLEAN,
+            admin BOOLEAN DEFAULT (0),
             FOREIGN KEY (company_id)
             REFERENCES companies (id) ON DELETE CASCADE
             FOREIGN KEY (team_id)
