@@ -1,12 +1,16 @@
 import logging
-import sqlite3
+
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
 
 from config import TOKEN
-from functions import (get_current_question_id, get_next_question, 
-                       get_question_from_database, get_users_from_database)
+
+from db_create import db_create
+from db_operations import (
+                       get_current_question_id, get_next_question, 
+                       get_question_from_database, get_users_from_database,
+                       save_answer)
 
 
 # Настройка логирования
@@ -16,20 +20,8 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot = bot)
 
-# Подключение к базе данных SQLite
-conn = sqlite3.connect('answers.db')
-cursor = conn.cursor()
-
-# Создание таблицы для сохранения ответов
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS answers (
-        user_id INTEGER,
-        question_id INTEGER,
-        answer TEXT,
-        PRIMARY KEY (user_id, question_id)
-    )
-''')
-conn.commit()
+# Создание объекта БД
+db_create()
 
 # Обработчик команды /start
 @dp.message(Command("start"))
@@ -40,11 +32,11 @@ async def start(message: types.Message):
 @dp.message(Command("send"))
 async def send_questions(message: types.Message):
     # Получаем список пользователей
-    users = get_users_from_database()  # Реализуйте эту функцию для получения списка пользователей из базы данных
+    users = get_users_from_database()  # список пользователей из базы данных
 
     # Отправляем вопросы каждому пользователю
     for user_id in users:
-        question = get_question_from_database()  # Реализуйте эту функцию для получения вопроса из базы данных
+        question = get_question_from_database()  # вопрос из базы данных
         buttons = [types.KeyboardButton(answer) for answer in question['answers']]
         keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard_markup.add(*buttons)
@@ -54,18 +46,14 @@ async def send_questions(message: types.Message):
 @dp.message()
 async def handle_answer(message: types.Message):
     user_id = message.from_user.id
-    question_id = get_current_question_id(user_id)  # Реализуйте эту функцию для получения текущего вопроса пользователя
+    question_id = get_current_question_id(user_id)  # текущий вопрос пользователя
     answer = message.text
 
     # Сохраняем ответ в базе данных
-    cursor.execute('''
-        INSERT OR REPLACE INTO answers (user_id, question_id, answer)
-        VALUES (?, ?, ?)
-    ''', (user_id, question_id, answer))
-    conn.commit()
+    save_answer(user_id, question_id, answer)
 
     # Получаем следующий вопрос
-    next_question = get_next_question(question_id)  # Реализуйте эту функцию для получения следующего вопроса
+    next_question = get_next_question(question_id)  # следующий вопрос
     if next_question:
         buttons = [types.KeyboardButton(answer) for answer in next_question['answers']]
         keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
