@@ -13,7 +13,7 @@
 Таблица teams. 
     Поля: id(PK), title(уникальное), company_id(FK)
 Таблица questions. 
-    Поля: id(PK), title(НЕ уникальное поле), date (дата записи в таблицу), tean_id(FK), type (может быть двух типов - 1, 2)
+    Поля: id(PK), title(НЕ уникальное поле), date (дата записи в таблицу), team_id(FK), type (может быть двух типов - 1, 2)
 Таблица answers. 
     Поля: id(PK), question_id(FK), date, answer_title (ответы могут быть текстовыми (yes\no) или числовыми (от 1 до 5))
 Таблица messages. 
