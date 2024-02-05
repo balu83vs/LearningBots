@@ -12,13 +12,39 @@ from config import TOKEN
 from db_create import db_create
 from db_operations import (
                        new_user_creating, check_admin_permissions, get_users_from_database,
-                       get_current_question_id, get_next_question, get_question_from_database,
+                       get_question_from_database,
                        save_answer, save_question)
+
+from kbds import get_keyboard
 
 help = """
 Справочная информация о программе
 будет заполнена позже.
 """
+
+user_kb_yesno = get_keyboard(
+    'Yes',
+    'No',
+    placeholder='Ответьте Да или Нет',
+    sizes=(2,)
+)
+
+user_kb_range = get_keyboard(
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    placeholder='Выберите цифру',
+    sizes=(5,)
+)
+
+admin_kb_yesno = get_keyboard(
+    'Да',
+    'Нет',
+    placeholder='Отправить вопрос',
+    sizes=(2,)
+)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -53,11 +79,12 @@ async def start(message: types.Message):
 class FSMAdmin(StatesGroup):
     team_id = State()
     question = State()
-    type = State()        
+    type = State()    
+    exit = State()    
 
 # Обработчик команды /sendall (запуск машины состояний)
 @dp.message(StateFilter(None), Command("sendall"))
-async def enter_team_id(message: types.Message, state: FSMContext):
+async def start_fsm(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     # проверка прав доступа
     if not check_admin_permissions(user_id):
@@ -68,18 +95,18 @@ async def enter_team_id(message: types.Message, state: FSMContext):
 
 # Обработчик команды выхода из машины состояний
 @dp.message(Command("exit"))
-async def cancel_handler(message: types.Message, state: FSMContext):
+async def cancel_fsm(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     if check_admin_permissions(user_id):             
         curent_state = await state.get_state()                            
         if curent_state is None:                                         
             return
-        await state.finish()                                                
-        await message.reply('OK')     
+        await state.clear()                                               
+        await message.answer('Внесение вопроса в базу данных прервано.')    
 
 # функция загрузки team_id в словарь
 @dp.message(FSMAdmin.team_id)                                 
-async def enter_question(message : types.Message, state: FSMContext):      
+async def enter_team_id(message : types.Message, state: FSMContext):      
     user_id = message.from_user.id
     if check_admin_permissions(user_id):     
         await state.update_data(team_id=message.text)                                  
@@ -88,7 +115,7 @@ async def enter_question(message : types.Message, state: FSMContext):
 
 # функция загрузки question в словарь
 @dp.message(FSMAdmin.question)                                 
-async def enter_type(message : types.Message, state: FSMContext):      
+async def enter_question(message : types.Message, state: FSMContext):      
     user_id = message.from_user.id
     if check_admin_permissions(user_id):                                       
         await state.update_data(question=message.text)                                  
@@ -100,36 +127,59 @@ async def enter_type(message : types.Message, state: FSMContext):
 async def enter_type(message : types.Message, state: FSMContext):      
     user_id = message.from_user.id
     if check_admin_permissions(user_id):                                       
-        await state.update_data(type=message.text)   
-        data = await state.get_data()                              
-        if save_question(data):
-            await state.clear()
-            await message.answer('Вопрос успешно сохранен в базе.')
-        else:
-            await message.answer('Ошибка при сохранении вопроса.')    
+        await state.update_data(type=message.text)  
+        await message.answer('Отправить?', reply_markup=admin_kb_yesno)                                
+        await state.set_state(FSMAdmin.exit)    
 
+# функция подтверждения отправки вопроса и выхода из FSM
+@dp.message(FSMAdmin.exit)                                 
+async def exit_fsm(message : types.Message, state: FSMContext):      
+    user_id = message.from_user.id
+    if check_admin_permissions(user_id):    
+        if message.text == 'Да':
+            data = await state.get_data() 
+            try:
+                save_question(data)
+            except Exception as err:
+                await message.answer(f'Ошибка при сохранении вопроса в БД. {err}')
+            else:
+                team_id = data.get("team_id")
+                users = get_users_from_database(team_id)
+                question = get_question_from_database()[0]
+                if question[1] == 1:
+                    keyboard = user_kb_yesno
+                else:
+                    keyboard = user_kb_range    
+                for user_id in users:
+                    await bot.send_message(user_id[0], question[0], reply_markup=keyboard)    
+            finally:
+                await state.clear()
+        elif message.text == 'Нет':
+            await message.answer('Вопрос не был отправлен и не сохранен в БД')  
+            await state.clear()   
+        else:
+            await message.answer('Ответ не корректный. Воспользуйтесь клавиатурой')                                  
 ###################################### завершение блока машины состояний #################################################
 
-
-# Обработчик ответов на вопросы
+# Обработчик ответа на вопрос
 @dp.message()
 async def handle_answer(message: types.Message):
+    if message.text == "YES":
+        await message.answer('Нажата кнопка YES')
+    if message.text == "NO":
+        await message.answer('Нажата кнопка NO')
+
+
+
+    """
     user_id = message.from_user.id
-    question_id = get_current_question_id(user_id)  # текущий вопрос пользователя
+    question_id = get_question_from_database(user_id)  # текущий вопрос пользователя
     answer = message.text
 
     # Сохраняем ответ в базе данных
     save_answer(user_id, question_id, answer)
-
-    # Получаем следующий вопрос
-    next_question = get_next_question(question_id)  # следующий вопрос
-    if next_question:
-        buttons = [types.KeyboardButton(answer) for answer in next_question['answers']]
-        keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard_markup.add(*buttons)
-        await bot.send_message(user_id, next_question['text'], reply_markup=keyboard_markup)
-    else:
-        await bot.send_message(user_id, "Спасибо за ответы!")
+    await bot.send_message(user_id, "Спасибо за ответ!")
+    """    
 
 
 # Запуск процесса поллинга новых апдейтов
