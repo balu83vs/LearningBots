@@ -11,9 +11,9 @@ from config import TOKEN
 
 from db_create import db_create
 from db_operations import (
-                       new_user_creating, check_admin_permissions, get_users_from_database,
-                       get_question_from_database,
-                       save_answer, save_question)
+                       new_user_creating, get_users, check_admin_permissions, 
+                       save_question, get_question, del_question,
+                       save_answer)
 
 from kbds import get_keyboard
 
@@ -23,8 +23,8 @@ help = """
 """
 
 user_kb_yesno = get_keyboard(
-    'Yes',
-    'No',
+    'yes',
+    'no',
     placeholder='Ответьте Да или Нет',
     sizes=(2,)
 )
@@ -144,14 +144,14 @@ async def exit_fsm(message : types.Message, state: FSMContext):
                 await message.answer(f'Ошибка при сохранении вопроса в БД. {err}')
             else:
                 team_id = data.get("team_id")
-                users = get_users_from_database(team_id)
-                question = get_question_from_database()[0]
-                if question[1] == 1:
+                users = get_users(team_id)
+                question = get_question()[0]
+                if question[2] == 1:
                     keyboard = user_kb_yesno
                 else:
                     keyboard = user_kb_range    
                 for user_id in users:
-                    await bot.send_message(user_id[0], question[0], reply_markup=keyboard)    
+                    await bot.send_message(user_id[0], question[1], reply_markup=keyboard)    
             finally:
                 await state.clear()
         elif message.text == 'Нет':
@@ -164,22 +164,22 @@ async def exit_fsm(message : types.Message, state: FSMContext):
 # Обработчик ответа на вопрос
 @dp.message()
 async def handle_answer(message: types.Message):
-    if message.text == "YES":
-        await message.answer('Нажата кнопка YES')
-    if message.text == "NO":
-        await message.answer('Нажата кнопка NO')
-
-
-
-    """
-    user_id = message.from_user.id
-    question_id = get_question_from_database(user_id)  # текущий вопрос пользователя
-    answer = message.text
-
-    # Сохраняем ответ в базе данных
-    save_answer(user_id, question_id, answer)
-    await bot.send_message(user_id, "Спасибо за ответ!")
-    """    
+    try:
+        question_id = get_question()[0][0]
+    except:
+        await message.answer('Актуальных вопросов не найдено')    
+    else:
+        answer = message.text
+        if answer in ['yes', 'no', '1', '2', '3', '4', '5']:
+            try:            
+                save_answer(question_id, answer)
+            except Exception as err:
+                await message.answer(f'Ошибка при сохранении ответа в БД: {err}')
+            else:
+                del_question(question_id)    
+                await message.answer('Спасибо за ваш ответ!')
+        else:
+            await message.answer('Ответ не корректный. Воспользуйтесь клавиатурой')   
 
 
 # Запуск процесса поллинга новых апдейтов
