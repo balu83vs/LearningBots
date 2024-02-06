@@ -71,7 +71,7 @@ def save_question(data):
 def get_question():
     # Подключение к базе данных SQLite
     conn, cursor = db_connect()
-    # выборка всех пользователей из базы
+    # выборка всех вопросов из базы
     #sql = "select * from questions where id=:question_id"
     #cursor.execute(sql, {"question_id": question_id})
     sql = "select id, title, type from questions where id=(SELECT MAX(id) FROM questions)"
@@ -102,3 +102,30 @@ def save_answer(question_id, answer):
         VALUES (?, ?, ?)
     ''', (question_id, date, answer))
     conn.commit()
+
+
+# сохранение сообщения в БД
+def save_message(data):
+    # Подключение к базе данных SQLite
+    conn, cursor = db_connect()
+    date = datetime.now()
+    # внесение записи о сообщении в базу messages
+    cursor.execute('''
+        INSERT OR REPLACE INTO messages (title, date, team_id)
+        VALUES (?, ?, ?)
+    ''', (data.get('text_message'), date, data.get('team_id')))
+    conn.commit()
+
+
+# загрузка сообщения из БД
+def get_message():
+    # Подключение к базе данных SQLite
+    conn, cursor = db_connect()
+    # выборка всех сообщений из базы
+    #sql = "select * from messages where id=:message_id"
+    #cursor.execute(sql, {"message_id": message_id})
+    sql = "select id, title from messages where id=(SELECT MAX(id) FROM messages)"
+    cursor.execute(sql)
+    messages = cursor.fetchall()
+    conn.close()    
+    return messages    
