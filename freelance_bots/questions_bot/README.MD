@@ -2,8 +2,6 @@
 
 Стэк: Разработка бота на python + aiogram, БД - sqllite
 
-Команды и пути взаимодействия: https://miro.com/app/board/uXjVN23jse8=/?share_link_id=159582289990
-
 Таблицы для БД:
 
 Таблица users. 

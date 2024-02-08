@@ -27,8 +27,8 @@ def new_user_creating(user_id, company_id = 0, team_id = 0, admin = 0):
         return True
 
 
-# получение списка пользователей из БД
-def get_users(team_id):
+# получение списка пользователей команды из БД
+def get_team_users(team_id):
     # Подключение к базе данных SQLite
     conn, cursor = db_connect()
     # выборка всех пользователей из базы
@@ -60,11 +60,7 @@ def save_question(data):
         INSERT OR REPLACE INTO questions (title, date, team_id, type)
         VALUES (?, ?, ?, ?)
     ''', (data.get('question'), date, data.get('team_id'), data.get('type')))
-    try: 
-        conn.commit()
-        return True
-    except:
-        return False
+    conn.commit()   
     
 
 # загрузка вопроса из БД
@@ -92,28 +88,28 @@ def del_question(question_id):
 
 
 # сохранение ответа в БД
-def save_answer(question_id, answer):
+def save_answer(question_id, answer, user_id):
     # Подключение к базе данных SQLite
     conn, cursor = db_connect()
     date = datetime.now()
     # внесение записи об ответе в базу questions
     cursor.execute('''
-        INSERT OR REPLACE INTO answers (question_id, date, answer_title)
-        VALUES (?, ?, ?)
-    ''', (question_id, date, answer))
+        INSERT OR REPLACE INTO answers (question_id, date, answer_title, user_id)
+        VALUES (?, ?, ?, ?)
+    ''', (question_id, date, answer, user_id))
     conn.commit()
 
 
 # сохранение сообщения в БД
-def save_message(data):
+def save_message(data, admin_id):
     # Подключение к базе данных SQLite
     conn, cursor = db_connect()
     date = datetime.now()
     # внесение записи о сообщении в базу messages
     cursor.execute('''
-        INSERT OR REPLACE INTO messages (title, date, team_id)
-        VALUES (?, ?, ?)
-    ''', (data.get('text_message'), date, data.get('team_id')))
+        INSERT OR REPLACE INTO messages (title, date, team_id, admin_id)
+        VALUES (?, ?, ?, ?)
+    ''', (data.get('text_message'), date, data.get('team_id'), admin_id))
     conn.commit()
 
 

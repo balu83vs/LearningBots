@@ -82,7 +82,8 @@ def db_create():
     # Создание таблицы для ответов
     """
     Таблица answers. 
-    Поля: id(PK), question_id(FK), date, answer_title (ответы могут быть текстовыми (yes\no) или числовыми (от 1 до 5))
+    Поля: id(PK), question_id(FK), date, 
+    answer_title (ответы могут быть текстовыми (yes\no) или числовыми (от 1 до 5)), user_id(FK)
     """
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS answers (
@@ -90,15 +91,18 @@ def db_create():
             question_id INTEGER,       
             date DATE, 
             answer_title VARCHAR(10) CHECK(answer_title IN ('yes', 'no', '1', '2', '3', '4', '5')),   
+            user_id INTEGER,       
             FOREIGN KEY (question_id)     
-            REFERENCES questions (id) ON DELETE CASCADE     
+            REFERENCES questions (id) ON DELETE CASCADE   
+            FOREIGN KEY (user_id)   
+            REFERENCES users (id) ON DELETE CASCADE         
         )
     ''')
     
     # Создание таблицы для сообщений
     """
     Таблица messages. 
-    Поля: id(PK), date, title, team_id(FK)
+    Поля: id(PK), date, title, team_id(FK), admin_id(FK)
     """
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
@@ -106,8 +110,11 @@ def db_create():
             date DATE,       
             title VARCHAR(200),  
             team_id INTEGER,     
-            FOREIGN KEY (team_id)     
+            admin_id INTEGER,       
+            FOREIGN KEY (team_id)            
             REFERENCES teams (id) ON DELETE CASCADE     
+            FOREIGN KEY (admin_id)   
+            REFERENCES users (id) ON DELETE CASCADE           
         )
     ''')
 

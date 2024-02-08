@@ -12,26 +12,29 @@ from config import TOKEN
 
 from db_create import db_create
 from db_operations import (
-                       new_user_creating, get_users, check_admin_permissions, 
+                       new_user_creating, 
+                       get_team_users, 
+                       check_admin_permissions, 
                        save_question, get_question, del_question,
                        save_answer, 
                        save_message, get_message)
 
-from kbds import get_keyboard
+from kbds import get_inline_keyboard
 
 help = """
 Справочная информация о программе
 будет заполнена позже.
 """
 
-user_kb_yesno = get_keyboard(
+# инлайн клавиатуры
+user_inline_kb_yesno = get_inline_keyboard(
     'yes',
     'no',
     placeholder='Ответьте Да или Нет',
     sizes=(2,)
 )
 
-user_kb_range = get_keyboard(
+user_inline_kb_range = get_inline_keyboard(
     '1',
     '2',
     '3',
@@ -41,7 +44,7 @@ user_kb_range = get_keyboard(
     sizes=(5,)
 )
 
-admin_kb_yesno = get_keyboard(
+admin_inline_kb_yesno = get_inline_keyboard(
     'Да',
     'Нет',
     placeholder='Отправить вопрос',
@@ -55,13 +58,12 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-db_create()
-
 # стартовая функция бота (не работает)
 async def on_startup(_):                                                               
-    await print('Бот - On-line')
     await db_create()
+    #print('Бот - On-line')
 
+db_create() # костыль для запуска БД
 
 # Обработчик команды /help
 @dp.message(Command("help"))
@@ -131,38 +133,39 @@ async def enter_question(message : types.Message, state: FSMContext):
 async def enter_type(message : types.Message, state: FSMContext):      
     user_id = message.from_user.id
     if check_admin_permissions(user_id):                                       
-        await state.update_data(type=message.text)  
-        await message.answer('Отправить?', reply_markup=admin_kb_yesno)                                
-        await state.set_state(FSMAdmin_question.exit)    
+        await state.update_data(type=message.text)
+        await message.answer('Отправить?', reply_markup=admin_inline_kb_yesno)                       
+        await state.set_state(FSMAdmin_question.exit)
 
 # функция подтверждения отправки вопроса и выхода из FSM
-@dp.message(FSMAdmin_question.exit)                                 
-async def exit_fsm(message : types.Message, state: FSMContext):      
-    user_id = message.from_user.id
+@dp.callback_query(FSMAdmin_question.exit)                                 
+async def exit_fsm(callback: types.CallbackQuery, state: FSMContext):      
+    user_id = callback.from_user.id
     if check_admin_permissions(user_id):    
-        if message.text == 'Да':
+        if callback.data == 'Да':
             data = await state.get_data() 
             try:
                 save_question(data)
             except Exception as err:
-                await message.answer(f'Ошибка при сохранении вопроса в БД. {err}')
+                await callback.answer(f'Ошибка при сохранении вопроса в БД. {err}', show_alert=True)
             else:
                 team_id = data.get("team_id")
-                users = get_users(team_id)
+                users = get_team_users(team_id)
                 question = get_question()[0]
                 if question[2] == 1:
-                    keyboard = user_kb_yesno
+                    keyboard = user_inline_kb_yesno
                 else:
-                    keyboard = user_kb_range    
+                    keyboard = user_inline_kb_range    
                 for user_id in users:
-                    await bot.send_message(user_id[0], question[1], reply_markup=keyboard)    
+                    await bot.send_message(user_id[0], question[1], reply_markup=keyboard) 
+                    await callback.answer(f'Вопрос для группы {team_id} успешно отправлено.', show_alert=True)   
             finally:
                 await state.clear()
-        elif message.text == 'Нет':
-            await message.answer('Вопрос не был отправлен и не сохранен в БД')  
+        elif callback.data == 'Нет':
+            await callback.answer('Вопрос не был отправлен и не сохранен в БД', show_alert=True)  
             await state.clear()   
         else:
-            await message.answer('Ответ не корректный. Воспользуйтесь клавиатурой')                                  
+            await callback.answer('Ответ не корректный. Воспользуйтесь клавиатурой', show_alert=True)                                  
 ###################### завершение блока машины состояний - отправка вопроса ##################
 
 
@@ -209,55 +212,57 @@ async def enter_type(message : types.Message, state: FSMContext):
     user_id = message.from_user.id
     if check_admin_permissions(user_id):                                       
         await state.update_data(text_message=message.text)  
-        await message.answer('Отправить?', reply_markup=admin_kb_yesno)                                
+        await message.answer('Отправить?', reply_markup=admin_inline_kb_yesno)                                
         await state.set_state(FSMAdmin_message.exit)    
 
 # функция подтверждения отправки сообщения и выхода из FSM
-@dp.message(FSMAdmin_message.exit)                                 
-async def exit_fsm(message : types.Message, state: FSMContext):      
-    user_id = message.from_user.id
+@dp.callback_query(FSMAdmin_message.exit)                                 
+async def exit_fsm(callback : types.CallbackQuery, state: FSMContext):      
+    user_id = callback.from_user.id
     if check_admin_permissions(user_id):    
-        if message.text == 'Да':
+        if callback.data == 'Да':
             data = await state.get_data() 
             try:
-                save_message(data)
+                save_message(data, user_id)
             except Exception as err:
-                await message.answer(f'Ошибка при сохранении сообщения в БД. {err}')
+                await callback.answer(f'Ошибка при сохранении сообщения в БД. {err}')
             else:
                 team_id = data.get("team_id")
-                users = get_users(team_id)
+                users = get_team_users(team_id)
                 message = get_message()[0]   
                 for user_id in users:
-                    await bot.send_message(user_id[0], message[1])    
+                    await bot.send_message(user_id[0], message[1])  
+                    await callback.answer(f'Сообщение для группы {team_id} успешно отправлено.', show_alert=True)  
             finally:
                 await state.clear()
-        elif message.text == 'Нет':
-            await message.answer('Сообщение не было отправлено и не сохранено в БД')  
+        elif callback.data == 'Нет':
+            await callback.answer('Сообщение не было отправлено и не сохранено в БД', show_alert=True)  
             await state.clear()   
         else:
-            await message.answer('Ответ не корректный. Воспользуйтесь клавиатурой')                                  
+            await callback.answer('Ответ не корректный. Воспользуйтесь клавиатурой', show_alert=True)                                  
 ###################### завершение блока машины состояний - отправка сообщения ####################
 
 
 # Обработчик ответа на вопрос
-@dp.message()
-async def handle_answer(message: types.Message):
+@dp.callback_query()
+async def handle_answer(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
     try:
         question_id = get_question()[0][0]
     except:
-        await message.answer('Актуальных вопросов не найдено')    
+        await callback.answer('Актуальных вопросов не найдено', show_alert=True)    
     else:
-        answer = message.text
+        answer = callback.data
         if answer in ['yes', 'no', '1', '2', '3', '4', '5']:
             try:            
-                save_answer(question_id, answer)
+                save_answer(question_id, answer, user_id) 
             except Exception as err:
-                await message.answer(f'Ошибка при сохранении ответа в БД: {err}')
+                await callback.answer(f'Ошибка при сохранении ответа в БД: {err}', show_alert=True)
             else:
-                del_question(question_id)    
-                await message.answer('Спасибо за ваш ответ!')
+                del_question(question_id)
+                await callback.answer('Спасибо за ваш ответ!', show_alert=True)
         else:
-            await message.answer('Ответ не корректный. Воспользуйтесь клавиатурой')   
+            await callback.answer('Ответ не корректный. Воспользуйтесь клавиатурой', show_alert=True)               
 
 
 # Запуск процесса поллинга новых апдейтов
