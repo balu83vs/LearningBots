@@ -19,14 +19,26 @@ from db_operations import (
                        save_answer, 
                        save_message, get_message)
 
-from kbds import get_inline_keyboard
+from kbds import get_inline_keyboard, get_keyboard
 
 help = """
-Справочная информация о программе
-будет заполнена позже.
+Бот для рассылки сообщений и вопросов членам определенной команды.\n 
+Ответы на вопросы предлагаются членам команды в виде inline кнопок и сохраняются в базе данных.\n
+Рассылка вопросов и сообщений инициализируется администратором после ввода определенных команд.\n
+Для регистрации нового пользователя введите /start\n
+Для получения справки введите /help\n
 """
 
-# инлайн клавиатуры
+# стартовая клавиатура
+start_keyboard = get_keyboard(
+    '/start',
+    '/help',
+    placeholder='Базовые команды',
+    sizes=(1,1)
+)
+
+
+# инлайн клавиатуры пользователя
 user_inline_kb_yesno = get_inline_keyboard(
     'yes',
     'no',
@@ -44,6 +56,8 @@ user_inline_kb_range = get_inline_keyboard(
     sizes=(5,)
 )
 
+
+# инлайн клавиатуры администратора
 admin_inline_kb_yesno = get_inline_keyboard(
     'Да',
     'Нет',
@@ -51,19 +65,23 @@ admin_inline_kb_yesno = get_inline_keyboard(
     sizes=(2,)
 )
 
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
+
 
 # Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+
 # стартовая функция бота (не работает)
 async def on_startup(_):                                                               
     await db_create()
-    #print('Бот - On-line')
+    print('Бот - On-line')
 
 db_create() # костыль для запуска БД
+
 
 # Обработчик команды /help
 @dp.message(Command("help"))
@@ -75,8 +93,9 @@ async def start(message: types.Message):
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
+    await message.answer("Привет! Я бот для рассылки вопросов.", reply_markup=start_keyboard)
     if new_user_creating(user_id):
-        await message.answer("Привет! Я бот для рассылки вопросов.\n Ваш user_id успешно внесен в базу данных.\n")
+        await message.answer("Ваш user_id успешно внесен в базу данных.")
     else:
         await message.answer("Вы уже есть в Базе.")
 
@@ -142,6 +161,7 @@ async def enter_type(message : types.Message, state: FSMContext):
 async def exit_fsm(callback: types.CallbackQuery, state: FSMContext):      
     user_id = callback.from_user.id
     if check_admin_permissions(user_id):    
+        # введен вариант ответа "Да" 
         if callback.data == 'Да':
             data = await state.get_data() 
             try:
@@ -161,6 +181,7 @@ async def exit_fsm(callback: types.CallbackQuery, state: FSMContext):
                     await callback.answer(f'Вопрос для группы {team_id} успешно отправлено.', show_alert=True)   
             finally:
                 await state.clear()
+        # введен вариант ответа "Нет"         
         elif callback.data == 'Нет':
             await callback.answer('Вопрос не был отправлен и не сохранен в БД', show_alert=True)  
             await state.clear()   
@@ -253,6 +274,7 @@ async def handle_answer(callback: types.CallbackQuery):
         await callback.answer('Актуальных вопросов не найдено', show_alert=True)    
     else:
         answer = callback.data
+        # защита от ручного ввода ответов
         if answer in ['yes', 'no', '1', '2', '3', '4', '5']:
             try:            
                 save_answer(question_id, answer, user_id) 

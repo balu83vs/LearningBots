@@ -1,13 +1,13 @@
 import sqlite3
-
 from config import db_name
+
 
 # функция подключения к базе данных SQLite
 def db_connect():
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
-
     return conn, cursor
+
 
 # функция создания БД
 def db_create():
@@ -119,5 +119,4 @@ def db_create():
     ''')
 
     conn.commit()
-
     return cursor
